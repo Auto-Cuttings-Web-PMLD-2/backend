@@ -1,0 +1,28 @@
+# Python cache & environments
+__pycache__/
+*.py[cod]
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Jupyter
+.ipynb_checkpoints
+
+# IDE / editor
+.vscode/
+.idea/
+
+# Data/model besar
+*.pt
+runs/
+temp_images/
