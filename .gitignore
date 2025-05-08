@@ -25,4 +25,5 @@ env/
 # Data/model besar
 *.pt
 runs/
+static/
 temp_images/
