@@ -1,8 +1,8 @@
-"""update project table
+"""init-table
 
-Revision ID: dadd863d9443
+Revision ID: a7d8010040f9
 Revises: 
-Create Date: 2025-05-08 13:01:16.121231
+Create Date: 2025-05-15 13:09:46.358417
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'dadd863d9443'
+revision = 'a7d8010040f9'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -22,7 +22,7 @@ def upgrade():
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('email', sa.String(length=100), nullable=False),
     sa.Column('username', sa.String(length=100), nullable=False),
-    sa.Column('password', sa.String(length=100), nullable=False),
+    sa.Column('password', sa.String(length=255), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('project',
@@ -32,7 +32,7 @@ def upgrade():
     sa.Column('sandStoneCoverage', sa.Float(), nullable=False),
     sa.Column('siltStoneCount', sa.Integer(), nullable=False),
     sa.Column('siltStoneCoverage', sa.Float(), nullable=False),
-    sa.Column('segmentedImageURL', sa.String(length=264), nullable=False),
+    sa.Column('segmentedImageURL', sa.String(length=255), nullable=False),
     sa.Column('postDate', sa.Date(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),

@@ -4,13 +4,15 @@ from app.models import User
 from app import db
 from ultralytics import YOLO
 from PIL import Image
+
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from itsdangerous import URLSafeTimedSerializer
 from flask import current_app
 from app.utils import send_reset_email
+from werkzeug.security import _hash_internal
 
 import torch
 import os
@@ -139,55 +141,50 @@ def analyze():
 project_bp = Blueprint("project", __name__)
 logging.basicConfig(level=logging.DEBUG)
 
-# CREATE
-@project_bp.route("/projects", methods=["POST"])
-# @jwt_required()
 
-def add_project():
-    data = request.json
-    project = Project(
-        name=data.get('name'),
-        sandStoneCount=data.get('sandStoneCount'),
-        sandStoneCoverage=data.get('sandStoneCoverage'),
-        siltStoneCount=data.get('siltStoneCount'),
-        siltStoneCoverage=data.get('siltStoneCoverage'),
-        segmentedImageURL=data.get('segmentedImageURL')
-    )
-    db.session.add(project)
-    db.session.commit()
-
-    return jsonify({
-        "message": "Project added successfully",
-        "data": data
-    }), 201
-
-
-# READ ALL
+# READ ALL - Hanya menampilkan project milik user yang login
 @project_bp.route("/projects", methods=["GET"])
-# @jwt_required()
-
+@jwt_required()
 def get_all_projects():
-    projects = Project.query.all()
-    result = []
-    for p in projects:
-        result.append({
+    current_user_email = get_jwt_identity()
+    user = User.query.filter_by(email=current_user_email).first()
+
+    if not user:
+        return jsonify({"message": "User tidak ditemukan"}), 404
+
+    projects = Project.query.filter_by(user_id=user.id).all()
+
+    result = [
+        {
             "id": p.id,
             "name": p.name,
             "sandStoneCount": p.sandStoneCount,
             "sandStoneCoverage": p.sandStoneCoverage,
             "siltStoneCount": p.siltStoneCount,
             "siltStoneCoverage": p.siltStoneCoverage,
-            "segmentedImageURL": p.segmentedImageURL
-        })
-    return jsonify(result)
+            "segmentedImageURL": p.segmentedImageURL,
+            "user_id": p.user_id
+        } for p in projects
+    ]
+
+    return jsonify(result), 200
 
 
-# READ ONE
+# READ ONE - Dengan verifikasi kepemilikan
 @project_bp.route("/projects/<int:id>", methods=["GET"])
-# @jwt_required()
-
+@jwt_required()
 def get_project(id):
+    current_user_email = get_jwt_identity()
+    user = User.query.filter_by(email=current_user_email).first()
+
+    if not user:
+        return jsonify({"message": "User tidak ditemukan"}), 404
+
     project = Project.query.get_or_404(id)
+
+    if project.user_id != user.id:
+        return jsonify({"message": "Anda tidak berhak mengakses project ini"}), 403
+
     return jsonify({
         "id": project.id,
         "name": project.name,
@@ -195,16 +192,57 @@ def get_project(id):
         "sandStoneCoverage": project.sandStoneCoverage,
         "siltStoneCount": project.siltStoneCount,
         "siltStoneCoverage": project.siltStoneCoverage,
-        "segmentedImageURL": project.segmentedImageURL
-    })
+        "segmentedImageURL": project.segmentedImageURL,
+        "user_id": project.user_id
+    }), 200
 
 
-# UPDATE
+# CREATE - Menyimpan project untuk user yang login
+@project_bp.route("/projects", methods=["POST"])
+@jwt_required()
+def create_project():
+    current_user_email = get_jwt_identity()
+    user = User.query.filter_by(email=current_user_email).first()
+
+    if not user:
+        return jsonify({"message": "User tidak ditemukan"}), 404
+
+    data = request.json
+
+    new_project = Project(
+        name=data['name'],
+        sandStoneCount=data['sandStoneCount'],
+        sandStoneCoverage=data['sandStoneCoverage'],
+        siltStoneCount=data['siltStoneCount'],
+        siltStoneCoverage=data['siltStoneCoverage'],
+        segmentedImageURL=data['segmentedImageURL'],
+        user_id=user.id
+    )
+
+    db.session.add(new_project)
+    db.session.commit()
+
+    return jsonify({
+        "message": "Project berhasil dibuat",
+        "project_id": new_project.id
+    }), 201
+
+
+# UPDATE - Hanya jika project dimiliki oleh user
 @project_bp.route("/projects/<int:id>", methods=["PUT"])
-# @jwt_required()
-
+@jwt_required()
 def update_project(id):
+    current_user_email = get_jwt_identity()
+    user = User.query.filter_by(email=current_user_email).first()
+
+    if not user:
+        return jsonify({"message": "User tidak ditemukan"}), 404
+
     project = Project.query.get_or_404(id)
+
+    if project.user_id != user.id:
+        return jsonify({"message": "Anda tidak berhak mengubah project ini"}), 403
+
     data = request.json
 
     project.name = data.get('name', project.name)
@@ -215,18 +253,29 @@ def update_project(id):
     project.segmentedImageURL = data.get('segmentedImageURL', project.segmentedImageURL)
 
     db.session.commit()
-    return jsonify({"message": "Project updated successfully"})
+
+    return jsonify({"message": "Project berhasil diperbarui"}), 200
 
 
-# DELETE
+# DELETE - Hanya jika project dimiliki oleh user
 @project_bp.route("/projects/<int:id>", methods=["DELETE"])
-# @jwt_required()
-
+@jwt_required()
 def delete_project(id):
+    current_user_email = get_jwt_identity()
+    user = User.query.filter_by(email=current_user_email).first()
+
+    if not user:
+        return jsonify({"message": "User tidak ditemukan"}), 404
+
     project = Project.query.get_or_404(id)
+
+    if project.user_id != user.id:
+        return jsonify({"message": "Anda tidak berhak menghapus project ini"}), 403
+
     db.session.delete(project)
     db.session.commit()
-    return jsonify({"message": "Project deleted successfully"})
+
+    return jsonify({"message": "Project berhasil dihapus"}), 200
 
 
 # =====================================================================
@@ -236,7 +285,7 @@ auth_bp = Blueprint('auth', __name__)
 
 # Route untuk Registrasi (Sign Up)
 @auth_bp.route('/signup', methods=['POST'])
-def signup():
+def signup():    
     data = request.get_json()
 
     email = data.get('email')
@@ -248,8 +297,9 @@ def signup():
     if user:
         return jsonify({'message': 'Email sudah terdaftar'}), 400
 
-    hashed_password = generate_password_hash(password)
-    # hashed_password = generate_password_hash(password, method="pbkdf2:sha256:600000")
+    # hashed_password = generate_password_hash(password)
+    print(password)
+    hashed_password = generate_password_hash(password, method="pbkdf2:sha256:600000")
     
     # Membuat pengguna baru
     new_user = User(email=email, username=username, password=hashed_password)
@@ -263,22 +313,24 @@ def signup():
 @auth_bp.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
-    print("Data yang diterima:", data)
-
     email = data.get('email')
     password = data.get('password')
 
-    # Mencari pengguna berdasarkan email
     user = User.query.filter_by(email=email).first()
-    print("data user : ", user.email)
+    print(password)
+    print(user.password)
+    print("Check:", check_password_hash(user.password, password))
 
-    # Periksa apakah pengguna ada dan password cocok
-    if not user or not check_password_hash(user.password, password):
+    if not user:
         return jsonify({'message': 'Email atau password salah'}), 401
 
-    # Membuat token akses JWT
-    access_token = create_access_token(identity=user.email)
+    # print(user.password)
+    # print(password)
+    # Verifikasi password dengan fungsi bawaan
+    if not check_password_hash(user.password, password):
+        return jsonify({'message': 'Email atau password salah'}), 401
 
+    access_token = create_access_token(identity=user.email)
     return jsonify({'message': 'Login berhasil!', 'access_token': access_token}), 200
 
 
@@ -312,8 +364,8 @@ def reset_password(token):
     if not user:
         return jsonify({'message': 'Pengguna tidak ditemukan'}), 404
 
-    user.password = generate_password_hash(new_password)
-    # user.password = generate_password_hash(new_password, method="pbkdf2:sha256:600000")
+    # user.password = generate_password_hash(new_password)
+    user.password = generate_password_hash(new_password, method="pbkdf2:sha256:600000")
     db.session.commit()
 
     return jsonify({'message': 'Password berhasil diubah'})

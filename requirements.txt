@@ -39,7 +39,8 @@ Requests
 
 Ultralytics
 
-werkzeug
+Werkzeug==2.3.6
+
 
 Flask-Migrate
 
