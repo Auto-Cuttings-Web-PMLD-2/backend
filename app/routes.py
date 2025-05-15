@@ -381,17 +381,21 @@ logging.basicConfig(level=logging.DEBUG)
 @user_bp.route("/users", methods=["POST"])
 def add_user():
     data = request.json
+    hashed_password = generate_password_hash(data.get('password'), method="pbkdf2:sha256:600000")
     user = User(
         email=data.get('email'),
         username=data.get('username'),
-        password=data.get('password'),
+        password=hashed_password,
     )
     db.session.add(user)
     db.session.commit()
 
     return jsonify({
         "message": "User added successfully",
-        "data": data
+        "data": {
+            "email": user.email,
+            "username": user.username
+        }
     }), 201
 
 
