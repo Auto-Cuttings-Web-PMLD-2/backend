@@ -22,6 +22,7 @@ import os
 import time
 import uuid
 import logging
+import shutil
 
 # Helper function
 def clear_prediction_folder():
