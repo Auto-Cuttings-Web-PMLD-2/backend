@@ -1,4 +1,5 @@
-from flask import Blueprint, request, jsonify, url_for
+from flask import Blueprint, request, jsonify, url_for, Flask, send_from_directory
+
 from app.models import Project
 from app.models import User
 from app import db
@@ -13,10 +14,11 @@ from itsdangerous import URLSafeTimedSerializer
 from flask import current_app
 from app.utils import send_reset_email
 from werkzeug.security import _hash_internal
+from datetime import datetime
+
 
 import torch
 import os
-import shutil
 import time
 import uuid
 import logging
@@ -44,12 +46,27 @@ def load_model():
     return model
 
 
+# showImage = Blueprint("showImage", __name__)
+# logging.basicConfig(level=logging.DEBUG)
+
+# @showImage.route('/static/segmented/<filename>', methods=["GET"])
+# def showImages(filename):
+#     folder_path = os.path.join(current_app.root_path, 'static', 'segmented')
+#     return send_from_directory(folder_path, filename)
+
+
+
 # BP AUTOCUTTING
 analyze_bp = Blueprint("analyze", __name__)
 logging.basicConfig(level=logging.DEBUG)
 
+@analyze_bp.route("/cek-file", methods=["GET"])
+def cekFile():
+    print("[DEBUG] Folder static berada di:", os.path.abspath("static"))
+    print("[DEBUG] Ada file:", os.path.exists("static/segmented/acf2d9e174ad4db29ff4eebc4fd37cdf.jpg"))
+
 @analyze_bp.route("/analyze", methods=["POST"])
-# @jwt_required()
+@jwt_required(locations=["cookies"])
 def analyze():
     UPLOAD_FOLDER = 'temp_images'
     SEGMENTED_FOLDER = 'static/segmented'
@@ -144,7 +161,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 # READ ALL - Hanya menampilkan project milik user yang login
 @project_bp.route("/projects", methods=["GET"])
-@jwt_required()
+@jwt_required(locations=["headers", "cookies"])
 def get_all_projects():
     current_user_email = get_jwt_identity()
     user = User.query.filter_by(email=current_user_email).first()
@@ -163,7 +180,7 @@ def get_all_projects():
             "siltStoneCount": p.siltStoneCount,
             "siltStoneCoverage": p.siltStoneCoverage,
             "segmentedImageURL": p.segmentedImageURL,
-            "user_id": p.user_id
+            "postDate" : p.postDate
         } for p in projects
     ]
 
@@ -172,7 +189,7 @@ def get_all_projects():
 
 # READ ONE - Dengan verifikasi kepemilikan
 @project_bp.route("/projects/<int:id>", methods=["GET"])
-@jwt_required()
+@jwt_required(locations=["headers", "cookies"])
 def get_project(id):
     current_user_email = get_jwt_identity()
     user = User.query.filter_by(email=current_user_email).first()
@@ -180,7 +197,10 @@ def get_project(id):
     if not user:
         return jsonify({"message": "User tidak ditemukan"}), 404
 
-    project = Project.query.get_or_404(id)
+    project = Project.query.filter_by(id=id).first()
+
+    if not project:
+        return jsonify({"message": "Project tidak ditemukan"}), 404
 
     if project.user_id != user.id:
         return jsonify({"message": "Anda tidak berhak mengakses project ini"}), 403
@@ -193,13 +213,13 @@ def get_project(id):
         "siltStoneCount": project.siltStoneCount,
         "siltStoneCoverage": project.siltStoneCoverage,
         "segmentedImageURL": project.segmentedImageURL,
-        "user_id": project.user_id
+        "postDate" : project.postDate,
     }), 200
 
 
 # CREATE - Menyimpan project untuk user yang login
 @project_bp.route("/projects", methods=["POST"])
-@jwt_required()
+@jwt_required(locations=["headers", "cookies"])
 def create_project():
     current_user_email = get_jwt_identity()
     user = User.query.filter_by(email=current_user_email).first()
@@ -216,6 +236,7 @@ def create_project():
         siltStoneCount=data['siltStoneCount'],
         siltStoneCoverage=data['siltStoneCoverage'],
         segmentedImageURL=data['segmentedImageURL'],
+        postDate=datetime.now(),
         user_id=user.id
     )
 
@@ -230,7 +251,7 @@ def create_project():
 
 # UPDATE - Hanya jika project dimiliki oleh user
 @project_bp.route("/projects/<int:id>", methods=["PUT"])
-@jwt_required()
+@jwt_required(locations=["headers", "cookies"])
 def update_project(id):
     current_user_email = get_jwt_identity()
     user = User.query.filter_by(email=current_user_email).first()
@@ -238,10 +259,13 @@ def update_project(id):
     if not user:
         return jsonify({"message": "User tidak ditemukan"}), 404
 
-    project = Project.query.get_or_404(id)
+    project = Project.query.filter_by(id=id).first()
+    
+    if not project:
+        return jsonify({"message": "Project tidak ditemukan"}), 404
 
     if project.user_id != user.id:
-        return jsonify({"message": "Anda tidak berhak mengubah project ini"}), 403
+        return jsonify({"message": "Anda tidak berhak mengakses project ini"}), 403
 
     data = request.json
 
@@ -259,7 +283,7 @@ def update_project(id):
 
 # DELETE - Hanya jika project dimiliki oleh user
 @project_bp.route("/projects/<int:id>", methods=["DELETE"])
-@jwt_required()
+@jwt_required(locations=["headers", "cookies"])
 def delete_project(id):
     current_user_email = get_jwt_identity()
     user = User.query.filter_by(email=current_user_email).first()
@@ -317,16 +341,10 @@ def signin():
     password = data.get('password')
 
     user = User.query.filter_by(email=email).first()
-    print(password)
-    print(user.password)
-    print("Check:", check_password_hash(user.password, password))
 
     if not user:
         return jsonify({'message': 'Email atau password salah'}), 401
 
-    # print(user.password)
-    # print(password)
-    # Verifikasi password dengan fungsi bawaan
     if not check_password_hash(user.password, password):
         return jsonify({'message': 'Email atau password salah'}), 401
 
@@ -372,7 +390,7 @@ def reset_password(token):
 
 
 @auth_bp.route('/me', methods=['GET'])
-@jwt_required(locations=["cookies"])  # ← penting: ambil token dari cookie
+@jwt_required(locations=["cookies"])
 def get_user():
     identity = get_jwt_identity()  # biasanya email
     user = User.query.filter_by(email=identity).first()

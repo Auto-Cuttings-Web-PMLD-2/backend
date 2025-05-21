@@ -12,10 +12,10 @@ migrate = Migrate()
 mail = Mail()
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder="../static")
 
     # JWT config
-    app.config["JWT_TOKEN_LOCATION"] = ["cookies"]
+    app.config["JWT_TOKEN_LOCATION"] = ["cookies", "headers"]
     app.config["JWT_ACCESS_COOKIE_NAME"] = "access_token"
     app.config["JWT_COOKIE_SECURE"] = False  # True untuk HTTPS production
     app.config["JWT_COOKIE_SAMESITE"] = "Strict"
