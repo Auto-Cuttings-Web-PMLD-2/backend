@@ -310,8 +310,8 @@ def signup():
 
 
 # Route untuk Login
-@auth_bp.route('/login', methods=['POST'])
-def login():
+@auth_bp.route('/signin', methods=['POST'])
+def signin():
     data = request.get_json()
     email = data.get('email')
     password = data.get('password')
@@ -370,6 +370,19 @@ def reset_password(token):
 
     return jsonify({'message': 'Password berhasil diubah'})
 
+
+@auth_bp.route('/me', methods=['GET'])
+@jwt_required(locations=["cookies"])  # ← penting: ambil token dari cookie
+def get_user():
+    identity = get_jwt_identity()  # biasanya email
+    user = User.query.filter_by(email=identity).first()
+    if not user:
+        return jsonify({'message': 'Pengguna tidak ditemukan'}), 404
+
+    return jsonify({
+        'email': user.email,
+        'username': user.username
+    }), 200
 
 
 # =====================================================================

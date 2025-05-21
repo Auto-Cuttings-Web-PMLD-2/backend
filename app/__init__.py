@@ -14,6 +14,13 @@ mail = Mail()
 def create_app():
     app = Flask(__name__)
 
+    # JWT config
+    app.config["JWT_TOKEN_LOCATION"] = ["cookies"]
+    app.config["JWT_ACCESS_COOKIE_NAME"] = "access_token"
+    app.config["JWT_COOKIE_SECURE"] = False  # True untuk HTTPS production
+    app.config["JWT_COOKIE_SAMESITE"] = "Strict"
+    app.config["JWT_COOKIE_CSRF_PROTECT"] = False  # atau True jika pakai CSRF
+
     # Konfigurasi Database
     app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:@localhost/autocutting_pmld'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -25,13 +32,15 @@ def create_app():
     app.config['MAIL_USE_TLS'] = True
     app.config['MAIL_USERNAME'] = 'tugaspmld@gmail.com'
     app.config['MAIL_PASSWORD'] = 'bsoo tkrg btrs kbrt'
-    CORS(app)
 
     jwt = JWTManager(app)
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
     mail.init_app(app)
+
+    # Aktifkan CORS
+    CORS(app, supports_credentials=True, origins=["http://localhost:3000"])
 
 
     # Registrasi blueprint
