@@ -30,11 +30,11 @@ def clear_prediction_folder():
     if os.path.exists(pred_path):
         shutil.rmtree(pred_path)
         
-def generate_reset_token(email, expires_sec=120):
+def generate_reset_token(email, expires_sec=(3600*24)):
     s = URLSafeTimedSerializer(current_app.config['JWT_SECRET_KEY'])
     return s.dumps(email, salt='password-reset-salt')
 
-def verify_reset_token(token, max_age=120):
+def verify_reset_token(token, max_age=(3600*24)):
     s = URLSafeTimedSerializer(current_app.config['JWT_SECRET_KEY'])
     try:
         email = s.loads(token, salt='password-reset-salt', max_age=max_age)
