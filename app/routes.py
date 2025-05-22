@@ -109,10 +109,11 @@ def analyze():
     for r in results:
         sandStoneCount = 0
         siltStoneCount = 0
-        class_pixel_counts = {"sandstone": 0, "siltstone": 0}
+        class_pixel_counts = {"Sandstone": 0, "Siltstone": 0}
 
         for box in r.boxes:
             cls_id = int(box.cls[0])
+            # print(cls_id)
             if cls_id == 0:
                 sandStoneCount += 1
             elif cls_id == 1:
@@ -124,6 +125,7 @@ def analyze():
             for i, mask in enumerate(masks):
                 cls_id = int(classes[i])
                 label = model.names[cls_id]
+                print(label)
                 pixel_count = mask.sum().item()
                 if label in class_pixel_counts:
                     class_pixel_counts[label] += pixel_count
@@ -139,14 +141,17 @@ def analyze():
 
         # URL untuk gambar segmented
         segmented_url = url_for('static', filename=f'segmented/{output_filename}', _external=True)
-
+        print("sandStone pix Count ; ", class_pixel_counts["Sandstone"])
+        print("sandStone coverage ; ", class_pixel_counts["Sandstone"] / total_pixels)
+        print("siltStone pix Count ; ", class_pixel_counts["Siltstone"])
+        print("siltStone coverage ; ", class_pixel_counts["Siltstone"] / total_pixels)
+        
         # Hasil analisis
         endResult.update({
             "sandStoneCount": sandStoneCount,
-            "sandStoneCoverage": class_pixel_counts["sandstone"] / total_pixels,
+            "sandStoneCoverage": class_pixel_counts["Sandstone"] / total_pixels,
             "siltStoneCount": siltStoneCount,
-            "siltStoneCoverage": class_pixel_counts["siltstone"] / total_pixels,
-            "inferenceTime": end_time - start_time,
+            "siltStoneCoverage": class_pixel_counts["Siltstone"] / total_pixels,
             "segmentedImageURL": segmented_url
         })
 
@@ -188,7 +193,7 @@ def get_all_projects():
     return jsonify(result), 200
 
 
-# READ ONE - Dengan verifikasi kepemilikan
+# READ ONE - Dengan verifikasi user
 @project_bp.route("/projects/<int:id>", methods=["GET"])
 @jwt_required(locations=["headers", "cookies"])
 def get_project(id):
